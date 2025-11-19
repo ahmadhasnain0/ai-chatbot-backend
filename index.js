@@ -14,8 +14,12 @@ app.get("/", (req, res) => {
   });
 });
 
+// use cors middleware
+const cors = require("cors")
+app.use(cors());
 // API Routes
 app.use("/api/auth", require("./src/routes/authRoutes"));
+app.use("/api/chat", require("./src/routes/chatRoutes"));
 app.use("/api/dashboard", require("./src/routes/homeRoutes"));
 
 // 404 Handler - FIXED VERSION
