@@ -1,5 +1,5 @@
 const express = require("express");
-const { loginUser } = require("../controllers/authController");
+const { loginUser, verifyAuth } = require("../controllers/authController");
 const { 
   validateLogin, 
   handleValidationErrors 
@@ -9,5 +9,6 @@ const router = express.Router();
 
 // Login with comprehensive validation
 router.post("/login", validateLogin, handleValidationErrors, loginUser);
+router.get("/verify", verifyAuth);
 
 module.exports = router;
