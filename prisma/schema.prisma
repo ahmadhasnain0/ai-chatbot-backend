@@ -30,7 +30,7 @@ model Message {
   id             Int      @id @default(autoincrement())
   conversationId Int
   role           String   // "user" or "assistant"
-  content        String
+  content        String   @db.Text  // Use @db.Text for longer content
   createdAt      DateTime @default(now())
 
   conversation   Conversation @relation(fields: [conversationId], references: [id])

@@ -4,31 +4,31 @@ const prisma = require("../config/db");
 const OpenAI = require("openai");
 
 // ------------------------------
-// INITIALIZE CLIENT (SAFE)
+// INITIALIZE CLIENT
 // ------------------------------
 let client = null;
 
 if (process.env.OPENAI_API_KEY) {
-  client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  client = new OpenAI({ 
+    apiKey: process.env.OPENAI_API_KEY 
+  });
   console.log("✅ OpenAI client initialized");
 } else {
-  console.log("⚠ No OpenAI API key found — running in MOCK MODE");
+  console.log("⚠ No OpenAI API key — running in MOCK MODE");
 }
 
-// Assistant defined on OpenAI website
 const ASSISTANT_ID = process.env.ASSISTANT_ID;
 
 // =====================================================
-// CREATE NEW CONVERSATION (NEW THREAD)
+// CREATE NEW CONVERSATION (THREAD CREATION)
 // =====================================================
 exports.createConversation = async (req, res) => {
   try {
-    // If no OpenAI key → create fake thread ID
     const threadId = client
       ? (await client.beta.threads.create()).id
       : `mock-thread-${Date.now()}`;
 
-    const newConversation = await prisma.conversation.create({
+    const conversation = await prisma.conversation.create({
       data: {
         userId: req.userId,
         threadId
@@ -38,11 +38,11 @@ exports.createConversation = async (req, res) => {
     return res.json({
       success: true,
       message: "Conversation created",
-      conversation: newConversation
+      conversation
     });
 
-  } catch (error) {
-    console.error("Create conversation error:", error);
+  } catch (err) {
+    console.error("Create conversation error:", err);
     return res.status(500).json({ success: false, message: "Server error" });
   }
 };
@@ -60,12 +60,13 @@ exports.sendMessage = async (req, res) => {
     });
 
     if (!conversation) {
-      return res.status(404).json({ success: false, message: "Conversation not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Conversation not found"
+      });
     }
 
-    const threadId = conversation.threadId;
-
-    // 1️⃣ STORE USER MESSAGE
+    // Save user msg
     await prisma.message.create({
       data: {
         conversationId,
@@ -74,12 +75,8 @@ exports.sendMessage = async (req, res) => {
       }
     });
 
-    // ------------------------------------------------------------
-    // MOCK MODE → generate fake assistant reply
-    // ------------------------------------------------------------
+    // MOCK MODE
     if (!client || !ASSISTANT_ID) {
-      console.log("⚠ MOCK MODE: No OpenAI keys available.");
-
       const mockReply = `Mock Reply: "${message}" received successfully.`;
 
       const saved = await prisma.message.create({
@@ -97,40 +94,71 @@ exports.sendMessage = async (req, res) => {
       });
     }
 
-    // ------------------------------------------------------------
     // REAL OPENAI MODE
-    // ------------------------------------------------------------
+    const threadId = conversation.threadId;
 
-    // 2️⃣ ADD USER MESSAGE TO THREAD
+    // 1️⃣ Add user message to thread
     await client.beta.threads.messages.create(threadId, {
       role: "user",
       content: message
     });
 
-    // 3️⃣ START A RUN
+    // 2️⃣ Create ASSISTANT RUN
     const run = await client.beta.threads.runs.create(threadId, {
       assistant_id: ASSISTANT_ID
     });
 
-    // 4️⃣ POLL UNTIL RUN COMPLETES
-    let runStatus;
-    do {
-      await new Promise((r) => setTimeout(r, 1000));
-      runStatus = await client.beta.threads.runs.retrieve(threadId, run.id);
-    } while (runStatus.status !== "completed");
+    console.log("Run created:", run.id);
 
-    // 5️⃣ GET ASSISTANT RESPONSE
-    const messages = await client.beta.threads.messages.list(threadId);
+    // 3️⃣ POLLING LOOP — wait for assistant to finish
+    let runStatus = run;
+    console.log("This is the run status:", runStatus.id);
+    console.log("This is the thread ID:", threadId);
 
-    const assistantMessageObj = messages.data.find(
-      (m) => m.role === "assistant"
-    );
+    while (runStatus.status === "in_progress" || runStatus.status === "queued") {
+  await new Promise((resolve) => setTimeout(resolve, 1200));
+
+  // Add these debug logs
+  console.log("About to retrieve - threadId:", threadId);
+  console.log("About to retrieve - runStatus.id:", runStatus.id);
+  console.log("About to retrieve - conversation.threadId:", conversation.threadId);
+  
+  runStatus = await client.beta.threads.runs.retrieve(runStatus.id, {
+  thread_id: threadId
+});
+  
+  console.log(`Run status: ${runStatus.status}`);
+}
+
+    if (runStatus.status === "failed") {
+      console.error("Run failed:", runStatus.last_error);
+      return res.status(500).json({
+        success: false,
+        message: "Assistant failed to process message",
+        error: runStatus.last_error
+      });
+    }
+
+    if (runStatus.status !== "completed") {
+      return res.status(500).json({
+        success: false,
+        message: `Assistant run ended with status: ${runStatus.status}`
+      });
+    }
+
+    // 4️⃣ Fetch assistant response
+    const messagesResponse = await client.beta.threads.messages.list(threadId);
+
+    // Get the latest assistant message
+    const assistantMessageObj = messagesResponse.data
+      .filter(m => m.role === "assistant")
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
 
     const assistantMessage =
-      assistantMessageObj?.content?.[0]?.text?.value || "No response received.";
+      assistantMessageObj?.content?.[0]?.text?.value || "No response";
 
-    // 6️⃣ SAVE ASSISTANT MESSAGE TO DB
-    const savedAssistantMessage = await prisma.message.create({
+    // 5️⃣ Save assistant message
+    const savedAssistant = await prisma.message.create({
       data: {
         conversationId,
         role: "assistant",
@@ -140,17 +168,21 @@ exports.sendMessage = async (req, res) => {
 
     return res.json({
       success: true,
-      assistantResponse: savedAssistantMessage
+      assistantResponse: savedAssistant
     });
 
-  } catch (error) {
-    console.error("Send message error:", error);
-    return res.status(500).json({ success: false, message: "Server error" });
+  } catch (err) {
+    console.error("Send message error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: err.message
+    });
   }
 };
 
 // =====================================================
-// GET FULL CONVERSATION HISTORY
+// GET ALL MESSAGES
 // =====================================================
 exports.getConversationMessages = async (req, res) => {
   try {
@@ -166,8 +198,8 @@ exports.getConversationMessages = async (req, res) => {
       messages
     });
 
-  } catch (error) {
-    console.error("Fetch messages error:", error);
+  } catch (err) {
+    console.error("Fetch messages error:", err);
     return res.status(500).json({ success: false, message: "Server error" });
   }
 };
