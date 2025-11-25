@@ -82,8 +82,6 @@ exports.logoutUser = async (req, res) => {
 
     if (token) {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      console.log("Decoded userId during logout:", decoded.userId);
-
       // Remove token from DB
       await prisma.user.update({
         where: { id: decoded.userId },
