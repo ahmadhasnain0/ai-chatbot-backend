@@ -10,16 +10,15 @@ const corsOptions = {
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
 };
 
-app.use(cors(corsOptions));
 
 // VERY IMPORTANT — handle preflight
+app.set('trust proxy', true);
 
-// use cors middleware
-const cors = require("cors")
 app.use(cors({
-  origin: true,
-  credentials: true,
+  origin: true,      // reflect origin
+  credentials: true, // allow cookies
 }));
+// use cors middleware
 // Middleware
 app.use(express.json());
 // Parse cookies sent in requests (needed to read HttpOnly token cookie)
