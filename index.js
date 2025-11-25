@@ -1,8 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const app = express();
-const cors = require("cors");   // <-- ADD THIS LINE
-
+const cors = require("cors");
 // use cors middleware
 const corsOptions = {
   origin: "http://localhost:3000",  // frontend
@@ -21,9 +20,6 @@ app.use(cors({
 // use cors middleware
 // Middleware
 app.use(express.json());
-// Parse cookies sent in requests (needed to read HttpOnly token cookie)
-const cookieParser = require("cookie-parser");
-app.use(cookieParser());
 
 // Public routes
 app.get("/", (req, res) => {
