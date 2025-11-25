@@ -13,6 +13,10 @@ exports.loginUser = async (req, res) => {
 
     // Generate token
     const authToken = generateToken(user.id);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { authToken },
+    });
 
     res.json({
       success: true,
@@ -22,7 +26,6 @@ exports.loginUser = async (req, res) => {
         id: user.id,
         name: user.name,
         email: user.email,
-        role: user.role
       }
     });
   } catch (error) {
@@ -53,6 +56,12 @@ exports.verifyAuth = async (req, res) => {
      const user = await prisma.user.findUnique({ 
       where: {id: decoded.userId } 
     });
+      if (!user || user.authToken !== token) {
+      return res.status(401).json({
+        success: false,
+        message: "Token mismatch or expired"
+      });
+    }
 
     return res.json({
       success: true,
@@ -69,17 +78,29 @@ exports.verifyAuth = async (req, res) => {
 //Logout
 exports.logoutUser = async (req, res) => {
   try {
-    // Since we're using stateless JWTs, logout can be handled on the client side
-    return res.json({ 
+    const token = req.headers.authorization?.split(" ")[1];
+
+    if (token) {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      console.log("Decoded userId during logout:", decoded.userId);
+
+      // Remove token from DB
+      await prisma.user.update({
+        where: { id: decoded.userId },
+        data: { authToken: null },
+      });
+    }
+
+    return res.json({
       success: true,
-      message: "Logout successful" 
+      message: "Logout successful"
     });
+
   } catch (error) {
     console.error("Logout error:", error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      message: "Internal server error during logout",
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: "Internal server error during logout"
     });
   }
 };

@@ -23,6 +23,7 @@ const ASSISTANT_ID = process.env.ASSISTANT_ID;
 // CREATE NEW CONVERSATION (THREAD CREATION)
 // =====================================================
 exports.createConversation = async (req, res) => {
+  console.log("This is the request: ", req.user.userId);
   try {
     const threadId = client
       ? (await client.beta.threads.create()).id
@@ -30,7 +31,7 @@ exports.createConversation = async (req, res) => {
 
     const conversation = await prisma.conversation.create({
       data: {
-        userId: req.userId,
+        userId: req.user.userId,
         threadId
       }
     });
