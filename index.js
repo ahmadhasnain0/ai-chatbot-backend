@@ -14,8 +14,17 @@ app.use(cors(corsOptions));
 
 // VERY IMPORTANT — handle preflight
 
+// use cors middleware
+const cors = require("cors")
+app.use(cors({
+  origin: "http://localhost:3000",
+  credentials: true,
+}));
 // Middleware
 app.use(express.json());
+// Parse cookies sent in requests (needed to read HttpOnly token cookie)
+const cookieParser = require("cookie-parser");
+app.use(cookieParser());
 
 // Public routes
 app.get("/", (req, res) => {

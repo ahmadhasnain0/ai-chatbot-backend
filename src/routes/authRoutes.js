@@ -4,6 +4,7 @@ const {
   validateLogin, 
   handleValidationErrors 
 } = require("../middleware/validationMiddleware");
+const authenticateUser = require("../middleware/auth");
 
 const router = express.Router();
 
