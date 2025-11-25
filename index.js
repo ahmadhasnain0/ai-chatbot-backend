@@ -1,6 +1,18 @@
 require("dotenv").config();
 const express = require("express");
 const app = express();
+const cors = require("cors");   // <-- ADD THIS LINE
+
+// use cors middleware
+const corsOptions = {
+  origin: "http://localhost:3000",  // frontend
+  credentials: true,                // allow cookies/tokens
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+};
+
+app.use(cors(corsOptions));
+
+// VERY IMPORTANT — handle preflight
 
 // use cors middleware
 const cors = require("cors")

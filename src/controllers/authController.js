@@ -83,33 +83,36 @@ exports.verifyAuth = async (req, res) => {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-
-    // ✅ Fetch user data from database
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        // Add any other fields you need
-      }
+     const user = await prisma.user.findUnique({ 
+      where: {id: decoded.userId } 
     });
-
-    if (!user) {
-      return res.status(401).json({ success: false, message: "User not found" });
-    }
 
     return res.json({
       success: true,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role
-      }
+      user: user,
     });
 
   } catch (err) {
     return res.status(401).json({ success: false, message: "Invalid token" });
+  }
+};
+
+
+
+//Logout
+exports.logoutUser = async (req, res) => {
+  try {
+    // Since we're using stateless JWTs, logout can be handled on the client side
+    return res.json({ 
+      success: true,
+      message: "Logout successful" 
+    });
+  } catch (error) {
+    console.error("Logout error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error during logout",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };

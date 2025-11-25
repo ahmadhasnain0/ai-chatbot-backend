@@ -10,7 +10,7 @@ const router = express.Router();
 
 // Login with comprehensive validation
 router.post("/login", validateLogin, handleValidationErrors, loginUser);
-router.get("/verify", authenticateUser, verifyAuth);
+router.get("/verify", verifyAuth);
 router.post("/logout", logoutUser);
 
 module.exports = router;
