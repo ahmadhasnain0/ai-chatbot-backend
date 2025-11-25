@@ -9,9 +9,15 @@ const corsOptions = {
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
 };
 
-app.use(cors(corsOptions));
 
+// VERY IMPORTANT — handle preflight
+app.set('trust proxy', true);
 
+app.use(cors({
+  origin: true,      // reflect origin
+  credentials: true, // allow cookies
+}));
+// use cors middleware
 // Middleware
 app.use(express.json());
 
