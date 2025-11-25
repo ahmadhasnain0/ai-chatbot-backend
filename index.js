@@ -2,8 +2,17 @@ require("dotenv").config();
 const express = require("express");
 const app = express();
 
+// use cors middleware
+const cors = require("cors")
+app.use(cors({
+  origin: "http://localhost:3000",
+  credentials: true,
+}));
 // Middleware
 app.use(express.json());
+// Parse cookies sent in requests (needed to read HttpOnly token cookie)
+const cookieParser = require("cookie-parser");
+app.use(cookieParser());
 
 // Public routes
 app.get("/", (req, res) => {
@@ -14,9 +23,6 @@ app.get("/", (req, res) => {
   });
 });
 
-// use cors middleware
-const cors = require("cors")
-app.use(cors());
 // API Routes
 app.use("/api/auth", require("./src/routes/authRoutes"));
 app.use("/api/chat", require("./src/routes/chatRoutes"));
