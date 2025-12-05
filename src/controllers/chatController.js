@@ -67,7 +67,7 @@ exports.sendMessage = async (req, res) => {
       });
     }
 
-    // Save user msg
+    // ✅ Save user message
     await prisma.message.create({
       data: {
         conversationId,
@@ -76,7 +76,7 @@ exports.sendMessage = async (req, res) => {
       }
     });
 
-    // MOCK MODE
+    // ✅ MOCK MODE
     if (!client || !ASSISTANT_ID) {
       const mockReply = `Mock Reply: "${message}" received successfully.`;
 
@@ -95,70 +95,63 @@ exports.sendMessage = async (req, res) => {
       });
     }
 
-    // REAL OPENAI MODE
     const threadId = conversation.threadId;
 
-    // 1️⃣ Add user message to thread
+    // ✅ 1. Add user message to thread
     await client.beta.threads.messages.create(threadId, {
       role: "user",
       content: message
     });
 
-    // 2️⃣ Create ASSISTANT RUN
-    const run = await client.beta.threads.runs.create(threadId, {
+    // ✅ 2. Create assistant run
+    let run = await client.beta.threads.runs.create(threadId, {
       assistant_id: ASSISTANT_ID
     });
 
     console.log("Run created:", run.id);
 
-    // 3️⃣ POLLING LOOP — wait for assistant to finish
-    let runStatus = run;
-    console.log("This is the run status:", runStatus.id);
-    console.log("This is the thread ID:", threadId);
+    // ✅ 3. SAFE Polling with Timeout Protection
+    let attempts = 0;
+    const MAX_ATTEMPTS = 15;
 
-    while (runStatus.status === "in_progress" || runStatus.status === "queued") {
-  await new Promise((resolve) => setTimeout(resolve, 1200));
+    while (
+      (run.status === "in_progress" || run.status === "queued") &&
+      attempts < MAX_ATTEMPTS
+    ) {
+      await new Promise(resolve => setTimeout(resolve, 1200));
 
-  // Add these debug logs
-  console.log("About to retrieve - threadId:", threadId);
-  console.log("About to retrieve - runStatus.id:", runStatus.id);
-  console.log("About to retrieve - conversation.threadId:", conversation.threadId);
-  
-  runStatus = await client.beta.threads.runs.retrieve(runStatus.id, {
-  thread_id: threadId
-});
-  
-  console.log(`Run status: ${runStatus.status}`);
-}
+      run = await client.beta.threads.runs.retrieve(run.id, {
+        thread_id: threadId
+      });
 
-    if (runStatus.status === "failed") {
-      console.error("Run failed:", runStatus.last_error);
-      return res.status(500).json({
+      console.log(`Run status: ${run.status}`);
+      attempts++;
+    }
+
+    if (attempts >= MAX_ATTEMPTS) {
+      return res.status(504).json({
         success: false,
-        message: "Assistant failed to process message",
-        error: runStatus.last_error
+        message: "Assistant timeout"
       });
     }
 
-    if (runStatus.status !== "completed") {
+    if (run.status === "failed") {
       return res.status(500).json({
         success: false,
-        message: `Assistant run ended with status: ${runStatus.status}`
+        message: "Assistant failed",
+        error: run.last_error
       });
     }
 
-    // 4️⃣ Fetch assistant response
-    const messagesResponse = await client.beta.threads.messages.list(threadId);
-
-    // Get the latest assistant message
-    const assistantMessageObj = messagesResponse.data
-      .filter(m => m.role === "assistant")
-      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+    // ✅ 4. Fetch ONLY latest assistant message (FAST)
+    const messagesResponse = await client.beta.threads.messages.list(threadId, {
+      limit: 1
+    });
 
     const assistantMessage =
-      assistantMessageObj?.content?.[0]?.text?.value || "No response";
+      messagesResponse?.data?.[0]?.content?.[0]?.text?.value || "No response";
 
-    // 5️⃣ Save assistant message
+    // ✅ 5. Save assistant message
     const savedAssistant = await prisma.message.create({
       data: {
         conversationId,
@@ -174,6 +167,7 @@ exports.sendMessage = async (req, res) => {
 
   } catch (err) {
     console.error("Send message error:", err);
+
     return res.status(500).json({
       success: false,
       message: "Server error",
