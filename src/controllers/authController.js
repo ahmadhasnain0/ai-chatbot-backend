@@ -13,10 +13,12 @@ exports.loginUser = async (req, res) => {
 
     // Generate token
     const authToken = generateToken(user.id);
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { authToken },
-    });
+    await prisma.token.create({
+  data: {
+    userId: user.id,
+    token: authToken,
+   }
+          });
 
     res.json({
       success: true,
@@ -52,26 +54,29 @@ exports.verifyAuth = async (req, res) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-     const user = await prisma.user.findUnique({ 
-      where: {id: decoded.userId } 
+    const tokenRecord = await prisma.token.findUnique({
+      where: { token },
     });
-      if (!user || user.authToken !== token) {
+    if (!tokenRecord) {
       return res.status(401).json({
         success: false,
         message: "Token mismatch or expired"
       });
     }
+    const user = await prisma.user.findUnique({
+      where: { id: tokenRecord.userId }
+    });
 
     return res.json({
       success: true,
-      user: user,
+      user,
     });
 
   } catch (err) {
     return res.status(401).json({ success: false, message: "Invalid token" });
   }
 };
+
 
 
 
@@ -85,9 +90,8 @@ exports.logoutUser = async (req, res) => {
       console.log("Decoded userId during logout:", decoded.userId);
 
       // Remove token from DB
-      await prisma.user.update({
-        where: { id: decoded.userId },
-        data: { authToken: null },
+      await prisma.token.delete({
+      where: { token },
       });
     }
 
